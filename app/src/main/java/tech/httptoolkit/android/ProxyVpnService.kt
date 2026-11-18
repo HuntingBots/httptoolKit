@@ -131,11 +131,11 @@ class ProxyVpnService : VpnService(), IProtectSocket {
         stopVpn(failed = runtime < VPN_TAKEOVER_THRESHOLD_MS)
     }
 
-    override fun onTimeout(startId: Int, fgsType: Int) {
+    override fun onTimeout(startId: Int) {
         // We shouldn't ever hit a foreground service timeout, given our exemption, but if we
         // do then we must shut down promptly, or the system will kill the whole process.
-        Log.w(TAG, "onTimeout called for foreground service type $fgsType")
-        Sentry.captureMessage("VPN service timed out (foreground service type $fgsType)")
+        Log.w(TAG, "onTimeout called for foreground service startId $startId")
+        Sentry.captureMessage("VPN service timed out (foreground service startId $startId)")
         stopVpn()
     }
 

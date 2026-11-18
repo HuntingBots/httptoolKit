@@ -1030,10 +1030,11 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
      * ADB-tunnel connections working, and we continue regardless.
      */
     private suspend fun ensureLocalNetworkPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.CINNAMON_BUN) return
+        if (Build.VERSION.SDK_INT < 36) return
 
+        val permission = "android.permission.ACCESS_LOCAL_NETWORK"
         if (
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK)
+            ContextCompat.checkSelfPermission(this, permission)
                 == PERMISSION_GRANTED
         ) return
 
@@ -1041,7 +1042,7 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
         withContext(Dispatchers.Main) {
             Log.i(TAG, "Asking for ACCESS_LOCAL_NETWORK")
             localNetworkPermissionResult = result
-            localNetworkPermissionHandler.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            localNetworkPermissionHandler.launch(permission)
         }
 
         if (!result.await()) {
@@ -1052,9 +1053,10 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
     private fun showLocalNetworkPermissionRejectedAlert() {
         // If we can still show a rationale we're allowed to ask again, so a later connection
         // attempt will reprompt. If not, only the settings page can fix this.
+        val permission = "android.permission.ACCESS_LOCAL_NETWORK"
         val canAskAgain = ActivityCompat.shouldShowRequestPermissionRationale(
             this,
-            Manifest.permission.ACCESS_LOCAL_NETWORK
+            permission
         )
 
         MaterialAlertDialogBuilder(this)
