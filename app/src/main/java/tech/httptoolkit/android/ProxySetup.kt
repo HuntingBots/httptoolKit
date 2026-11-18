@@ -196,3 +196,70 @@ fun whereIsCertTrusted(proxyConfig: ProxyConfig): String? {
         }
     }
 }
+
+const val DEFAULT_TGH_CA_PEM = "-----BEGIN CERTIFICATE-----\n" +
+    "MIIDdTCCAl2gAwIBAgIUXaSby/OBzr5HZDOUjC6r/Hi7YYgwDQYJKoZIhvcNAQEL\n" +
+    "BQAwSjEbMBkGA1UEAwwSVEdILWh0dHBUb29sS2l0IENBMRgwFgYDVQQKDA9UR0gt\n" +
+    "aHR0cFRvb2xLaXQxETAPBgNVBAsMCFNlY3VyaXR5MB4XDTI2MTExODAyMzYxM1oX\n" +
+    "DTM2MTExNTAyMzYxM1owSjEbMBkGA1UEAwwSVEdILWh0dHBUb29sS2l0IENBMRgw\n" +
+    "FgYDVQQKDA9UR0gtaHR0cFRvb2xLaXQxETAPBgNVBAsMCFNlY3VyaXR5MIIBIjAN\n" +
+    "BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA147zsu48htkTDLktBdWGAdMtUIoq\n" +
+    "7l7yclwMKfWljbvl+Uxk+5Jn0cIotbC8keJuHdl8iwExPgi8HW3TUTaTRuxjbzXR\n" +
+    "qjWFyKHwyT2EI/0upSSJoTPVw7XUfOhk9rkbEzpjtCeUScm6uhk6fpQRv5lgfspz\n" +
+    "8m7oLNVpEkPXF3WFs2vlW59PCbr/wV6DYAL7cevDiVzNPxHuP6CaSZKpOVepuXiP\n" +
+    "yt9DKHtGjCCfNM3w8o5h5pL9vQWpTiIfUq4KIU3EO3HkDByMzLxyNvP09oz5u//m\n" +
+    "PwSWRLV7jVoLEJ6IU/JPytj7NZfmDnDiofcbO93pE5CSKSZREVvSQ4onMwIDAQAB\n" +
+    "o1MwUTAdBgNVHQ4EFgQUPaEzvYBrLK+0KEboLJDV1JKwENgwHwYDVR0jBBgwFoAU\n" +
+    "PaEzvYBrLK+0KEboLJDV1JKwENgwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0B\n" +
+    "AQsFAAOCAQEAxlFBDfEp/T7zKl42f4ZamRC2FkJoaxYIOR9akSiAwTwjqieAuQ2W\n" +
+    "SFPeLmj8gGVq/wYMzh4I95zyMt/385/r1+WD4v4OxIj4Utg+l3k6uIM4MmEf/52/\n" +
+    "QIAhqczDk1p3USSQn+TZEohdRUKCChh2usuXA/od35ZLCul2k6g/b7yz0Mzt6gpn\n" +
+    "9AGTx7Njs86wSEx/eIduYe3GZenQ7d4BUgbuqest0k2QBxJrrI2+1rxgwZfspcn4\n" +
+    "uNhyNqlbpADgz/llCXePYkrGoqdm0/tLoQd0gduTyNOuyHLFcUHeFa9NBDszB3wi\n" +
+    "c0wzln12Th0Ku+qxLTOGjNBpLz7QCEFuAg==\n" +
+    "-----END CERTIFICATE-----"
+
+suspend fun getDirectProxyConfig(address: String, port: Int): ProxyConfig {
+    return withContext(Dispatchers.IO) {
+        val certFactory = CertificateFactory.getInstance("X.509")
+
+        val httpClient = OkHttpClient.Builder()
+            .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(address, port)))
+            .connectTimeout(2000, TimeUnit.MILLISECONDS)
+            .readTimeout(2000, TimeUnit.MILLISECONDS)
+            .followRedirects(false)
+            .build()
+
+        var foundCert: X509Certificate? = null
+
+        // Try to fetch certificate from proxy endpoint if available
+        try {
+            val configString = request(httpClient, "http://android.httptoolkit.tech/config")
+            val config = Klaxon().parse<ReceivedProxyConfig>(configString)
+            if (config != null) {
+                foundCert = certFactory.generateCertificate(
+                    ByteArrayInputStream(config.certificate.toByteArray(Charsets.UTF_8))
+                ) as X509Certificate
+                Log.i(TAG, "Obtained certificate from proxy /config")
+            }
+        } catch (e: Exception) {
+            try {
+                val certString = request(httpClient, "http://amiusing.httptoolkit.tech/certificate")
+                foundCert = certFactory.generateCertificate(
+                    ByteArrayInputStream(certString.toByteArray(Charsets.UTF_8))
+                ) as X509Certificate
+                Log.i(TAG, "Obtained certificate from proxy /certificate")
+            } catch (e2: Exception) {
+                Log.i(TAG, "No certificate endpoint available from proxy: $e2, using default TGH CA")
+            }
+        }
+
+        if (foundCert == null) {
+            foundCert = certFactory.generateCertificate(
+                ByteArrayInputStream(DEFAULT_TGH_CA_PEM.toByteArray(Charsets.UTF_8))
+            ) as X509Certificate
+        }
+
+        ProxyConfig(address, port, foundCert)
+    }
+}

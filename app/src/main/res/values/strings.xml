@@ -1,21 +1,21 @@
 <resources>
-    <string name="app_name">HTTP Toolkit</string>
+    <string name="app_name">TGH-httpToolKit</string>
 
     <string name="vpn_active_notification_title">Interception active</string>
-    <string name="vpn_active_notification_content">HTTP Toolkit is currently intercepting this device</string>
+    <string name="vpn_active_notification_content">TGH-httpToolKit is currently intercepting this device</string>
     <string name="vpn_active_notification_action">Stop intercepting</string>
 
     <string name="disconnected_status">Disconnected</string>
     <string name="disconnecting_status">Disconnecting…</string>
     <string name="connecting_status">Connecting…</string>
     <string name="connected_status">Connected</string>
-    <string name="failed_status">Oh no!</string>
+    <string name="failed_status">Connection Failed</string>
 
-    <string name="disconnected_details">To intercept this device, start HTTP Toolkit on your computer, and activate Android interception there via QR code or using ADB.</string>
+    <string name="disconnected_details">Tap \'Start Interception\' to capture HTTP/HTTPS traffic directly without QR login. Tap \'Configure Proxy\' to set custom host and port.</string>
 
     <string name="connected_details">to %s on port %d</string>
     <string name="connected_tunnel_details">via ADB tunnel</string>
-    <string name="failed_details">We couldn\'t connect to HTTP Toolkit.\n\nIs it running, and connected to the same network as this device?</string>
+    <string name="failed_details">Could not connect to the proxy.\n\nMake sure your proxy server (TGH-httpToolKit, mitmproxy, or Frida) is running on the configured host &amp; port.</string>
 
     <string name="disabled_connection_status_heading">No certificate trust configured</string>
     <string name="user_connection_status_enabled_heading">User trust enabled</string>
@@ -23,12 +23,14 @@
     <string name="system_connection_status_enabled_heading">System trust enabled</string>
     <string name="pre_v7_connection_status_enabled_heading">Certificate trusted</string>
 
-    <string name="none_connection_status_details">Your HTTP Toolkit certificate is not trusted on this device, so HTTPS traffic will only be available from apps that individually include and trust it.\n\nDisconnect and reconnect to rerun HTTPS certificate setup.</string>
+    <string name="none_connection_status_details">Your TGH-httpToolKit certificate is not trusted on this device, so HTTPS traffic will only be available from apps that individually include and trust it.\n\nDisconnect and reconnect to rerun HTTPS certificate setup or bypass with Frida.</string>
     <string name="user_connection_status_details">HTTPS interception will only be available for apps that are configured to trust user-installed certificates.</string>
     <string name="system_connection_status_details">Traffic from all intercepted applications will be available, except those using explicit certificate pinning.</string>
     <string name="pre_v7_connection_status_details">Traffic from all intercepted applications will be available, except those using explicit certificate pinning.</string>
 
-    <string name="scan_button">Scan/Paste QR code</string>
+    <string name="start_direct_button">⚡ Start Interception (Direct)</string>
+    <string name="config_proxy_button">⚙️ Configure Proxy</string>
+    <string name="scan_button">📷 Scan QR code (Optional)</string>
     <string name="paste_button">Paste QR code</string>
     <string name="reconnect_button">Reconnect</string>
     <string name="manual_button">Connect manually</string>
@@ -37,7 +39,7 @@
     <string name="try_again_button">Try again</string>
     <string name="test_button">Test interception</string>
 
-    <string name="qr_scan_prompt">Scan HTTP Toolkit QR code to connect</string>
+    <string name="qr_scan_prompt">Scan TGH-httpToolKit QR code to connect</string>
     <string name="app_drawable">App Drawable</string>
     <string name="applications">Applications</string>
     <string name="all_applications">All applications</string>
@@ -55,7 +57,7 @@
     <string name="few_ports">%s port%s</string>
     <string name="add_port_prompt">Add another port</string>
     <string name="reset_to_default_ports">Reset to default ports</string>
-    <string name="port_config_explanation">HTTP Toolkit sets the device\'s HTTP proxy configuration, to capture traffic from all apps on any port, but some apps may ignore this.\n\nYou can add ports here to forcibly redirect all outgoing traffic to that port, but be careful, as this will interfere with any non-HTTP traffic on these ports.</string>
+    <string name="port_config_explanation">TGH-httpToolKit sets the device\'s HTTP proxy configuration to capture traffic from all apps on any port, but some apps may ignore this.\n\nYou can add ports here to forcibly redirect all outgoing traffic to that port.</string>
     <string name="cancel">Cancel</string>
     <string name="proceed">Proceed</string>
     <string name="open_settings">Open Settings</string>

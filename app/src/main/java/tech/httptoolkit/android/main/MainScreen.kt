@@ -7,7 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,10 +52,14 @@ data class MainScreenState(
     val lastProxy: ProxyConfig?,
     val totalAppCount: Int,
     val interceptedAppCount: Int,
-    val interceptedPorts: Set<Int>
+    val interceptedPorts: Set<Int>,
+    val directHost: String = "127.0.0.1",
+    val directPort: Int = 8000
 )
 
 data class MainScreenActions(
+    val onDirectConnect: (host: String, port: Int) -> Unit,
+    val onConfigureProxy: (host: String, port: Int) -> Unit,
     val onScanQRCode: () -> Unit,
     val onReconnect: () -> Unit,
     val onDisconnect: () -> Unit,
@@ -72,6 +76,21 @@ fun MainScreen(
     actions: MainScreenActions,
     modifier: Modifier = Modifier
 ) {
+    var showConfigDialog by remember { mutableStateOf(false) }
+
+    if (showConfigDialog) {
+        ProxyConfigDialog(
+            currentHost = screenState.directHost,
+            currentPort = screenState.directPort,
+            onDismiss = { showConfigDialog = false },
+            onSaveAndConnect = { host, port ->
+                showConfigDialog = false
+                actions.onConfigureProxy(host, port)
+                actions.onDirectConnect(host, port)
+            }
+        )
+    }
+
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -79,21 +98,105 @@ fun MainScreen(
         LandscapeMainScreen(
             screenState = screenState,
             actions = actions,
+            onOpenConfigDialog = { showConfigDialog = true },
             modifier = modifier
         )
     } else {
         PortraitMainScreen(
             screenState = screenState,
             actions = actions,
+            onOpenConfigDialog = { showConfigDialog = true },
             modifier = modifier
         )
     }
 }
 
 @Composable
+fun ProxyConfigDialog(
+    currentHost: String,
+    currentPort: Int,
+    onDismiss: () -> Unit,
+    onSaveAndConnect: (host: String, port: Int) -> Unit
+) {
+    var hostInput by remember { mutableStateOf(currentHost) }
+    var portInput by remember { mutableStateOf(currentPort.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Proxy Configuration",
+                fontFamily = DmSansFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = AppConstants.textSizeBodyLarge
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(AppConstants.spacingSmall)
+            ) {
+                Text(
+                    text = "Configure target HTTP proxy host and port (e.g., TGH server, mitmproxy, or PC IP):",
+                    fontSize = AppConstants.textSizeCaption,
+                    fontFamily = DmSansFontFamily,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = hostInput,
+                    onValueChange = { hostInput = it },
+                    label = { Text("Proxy Host / IP") },
+                    placeholder = { Text("127.0.0.1") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = portInput,
+                    onValueChange = { text ->
+                        portInput = text.filter { it.isDigit() }
+                    },
+                    label = { Text("Proxy Port") },
+                    placeholder = { Text("8000") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val port = portInput.toIntOrNull() ?: 8000
+                    val host = if (hostInput.isBlank()) "127.0.0.1" else hostInput.trim()
+                    onSaveAndConnect(host, port)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text(
+                    text = "Save & Connect",
+                    fontFamily = DmSansFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = stringResource(R.string.cancel),
+                    fontFamily = DmSansFontFamily
+                )
+            }
+        }
+    )
+}
+
+@Composable
 private fun PortraitMainScreen(
     screenState: MainScreenState,
     actions: MainScreenActions,
+    onOpenConfigDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -147,7 +250,11 @@ private fun PortraitMainScreen(
                         isLandscape = false,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        ActionButtons(screenState = screenState, actions = actions)
+                        ActionButtons(
+                            screenState = screenState,
+                            actions = actions,
+                            onOpenConfigDialog = onOpenConfigDialog
+                        )
                     }
                 }
             }
@@ -176,6 +283,7 @@ private fun PortraitMainScreen(
 private fun LandscapeMainScreen(
     screenState: MainScreenState,
     actions: MainScreenActions,
+    onOpenConfigDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -230,7 +338,11 @@ private fun LandscapeMainScreen(
                     isLandscape = true,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    ActionButtons(screenState = screenState, actions = actions)
+                    ActionButtons(
+                        screenState = screenState,
+                        actions = actions,
+                        onOpenConfigDialog = onOpenConfigDialog
+                    )
                 }
             }
         }
@@ -307,15 +419,18 @@ private fun DetailContent(
 @Composable
 private fun ActionButtons(
     screenState: MainScreenState,
-    actions: MainScreenActions
+    actions: MainScreenActions,
+    onOpenConfigDialog: () -> Unit
 ) {
     when (screenState.connectionState) {
         DISCONNECTED -> {
             PrimaryButton(
-                text = stringResource(
-                    if (screenState.hasCamera) R.string.scan_button else R.string.paste_button
-                ),
-                onClick = actions.onScanQRCode
+                text = stringResource(R.string.start_direct_button),
+                onClick = { actions.onDirectConnect(screenState.directHost, screenState.directPort) }
+            )
+            SecondaryButton(
+                text = "${stringResource(R.string.config_proxy_button)} (${screenState.directHost}:${screenState.directPort})",
+                onClick = onOpenConfigDialog
             )
             if (screenState.lastProxy != null) {
                 SecondaryButton(
@@ -323,6 +438,12 @@ private fun ActionButtons(
                     onClick = actions.onReconnect
                 )
             }
+            SecondaryButton(
+                text = stringResource(
+                    if (screenState.hasCamera) R.string.scan_button else R.string.paste_button
+                ),
+                onClick = actions.onScanQRCode
+            )
         }
 
         CONNECTED -> {
@@ -338,6 +459,14 @@ private fun ActionButtons(
 
         FAILED -> {
             PrimaryButton(
+                text = stringResource(R.string.start_direct_button),
+                onClick = { actions.onDirectConnect(screenState.directHost, screenState.directPort) }
+            )
+            SecondaryButton(
+                text = "${stringResource(R.string.config_proxy_button)} (${screenState.directHost}:${screenState.directPort})",
+                onClick = onOpenConfigDialog
+            )
+            SecondaryButton(
                 text = stringResource(R.string.try_again_button),
                 onClick = actions.onRecoverAfterFailure
             )
@@ -424,7 +553,8 @@ private fun ButtonCard(
                         Modifier
                     }
                 )
-                .padding(contentPadding),
+                .padding(contentPadding)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(AppConstants.spacingSmall),
             content = content
         )

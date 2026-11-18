@@ -209,6 +209,26 @@ class HttpToolkitApplication : Application() {
             prefs.edit { putStringSet("intercepted-ports", ports.map(Int::toString).toSet()) }
         }
 
+    var directProxyHost: String
+        get() {
+            val prefs = getSharedPreferences(HTTP_TOOLKIT_PREFERENCES_NAME, MODE_PRIVATE)
+            return prefs.getString("direct-proxy-host", "127.0.0.1") ?: "127.0.0.1"
+        }
+        set(host) {
+            val prefs = getSharedPreferences(HTTP_TOOLKIT_PREFERENCES_NAME, MODE_PRIVATE)
+            prefs.edit { putString("direct-proxy-host", host) }
+        }
+
+    var directProxyPort: Int
+        get() {
+            val prefs = getSharedPreferences(HTTP_TOOLKIT_PREFERENCES_NAME, MODE_PRIVATE)
+            return prefs.getInt("direct-proxy-port", 8000)
+        }
+        set(port) {
+            val prefs = getSharedPreferences(HTTP_TOOLKIT_PREFERENCES_NAME, MODE_PRIVATE)
+            prefs.edit { putInt("direct-proxy-port", port) }
+        }
+
     suspend fun isUpdateRequired(): Boolean {
         return withContext(Dispatchers.IO) {
             if (wasInstalledFromStore(this@HttpToolkitApplication)) {

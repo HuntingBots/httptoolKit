@@ -97,6 +97,8 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
     private var totalAppCount: Int by mutableIntStateOf(0)
     private var interceptedAppCount: Int by mutableIntStateOf(0)
     private var interceptedPorts: Set<Int> by mutableStateOf(emptySet())
+    private var directHost: String by mutableStateOf("127.0.0.1")
+    private var directPort: Int by mutableIntStateOf(8000)
 
     val pickAppsContract = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -188,6 +190,8 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
         })
 
         app = this.application as HttpToolkitApplication
+        directHost = app.directProxyHost
+        directPort = app.directProxyPort
 
         if (savedInstanceState != null) restoreSetupState(savedInstanceState)
 
@@ -201,9 +205,24 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
                         lastProxy = app.lastProxy,
                         totalAppCount = totalAppCount,
                         interceptedAppCount = interceptedAppCount,
-                        interceptedPorts = interceptedPorts
+                        interceptedPorts = interceptedPorts,
+                        directHost = directHost,
+                        directPort = directPort
                     ),
                     actions = MainScreenActions(
+                        onDirectConnect = { host, port ->
+                            directHost = host
+                            directPort = port
+                            app.directProxyHost = host
+                            app.directProxyPort = port
+                            launch { connectDirectProxy(host, port) }
+                        },
+                        onConfigureProxy = { host, port ->
+                            directHost = host
+                            directPort = port
+                            app.directProxyHost = host
+                            app.directProxyPort = port
+                        },
                         onScanQRCode = { scanOrPasteQRCode() },
                         onReconnect = { reconnect() },
                         onDisconnect = { disconnect() },
@@ -485,6 +504,30 @@ class MainActivity : ComponentActivity(), CoroutineScope by MainScope() {
         startService(Intent(this, ProxyVpnService::class.java).apply {
             action = STOP_VPN_ACTION
         })
+    }
+
+    private suspend fun connectDirectProxy(host: String, port: Int) {
+        Log.i(TAG, "Connecting directly to proxy at $host:$port")
+        if (
+            mainState != ConnectionState.DISCONNECTED &&
+            mainState != ConnectionState.FAILED
+        ) return
+
+        mainState = ConnectionState.CONNECTING
+
+        ensureLocalNetworkPermission()
+
+        try {
+            val config = getDirectProxyConfig(host, port)
+            connectToVpn(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct proxy connect failed: $e")
+            e.printStackTrace()
+
+            mainState = ConnectionState.FAILED
+
+            Sentry.captureException(e)
+        }
     }
 
     private suspend fun reconnect(lastProxy: ProxyConfig) {
