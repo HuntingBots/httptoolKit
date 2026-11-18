@@ -1,0 +1,38 @@
+services:
+  # 24/7 Lightweight Proxy & HTTP Toolkit Interceptor
+  httptoolkit-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: httptoolkit-proxy:latest
+    container_name: httptoolkit-proxy-247
+    restart: always
+    ports:
+      - "8000:8000"   # Proxy Port (Target for Android VPN)
+      - "8081:8081"   # Live Traffic Web Dashboard
+    volumes:
+      - htk-certs:/app/certs
+    environment:
+      - PROXY_HOST=0.0.0.0
+      - PROXY_PORT=8000
+      - WEB_PORT=8081
+      # Optional: Set your public server IP or domain for QR code generation
+      - EXTERNAL_IP=${EXTERNAL_IP:-}
+
+  # Alternative: mitmweb proxy (mitmproxy with Web UI) for advanced scriptable inspection
+  mitmproxy-web:
+    image: mitmproxy/mitmproxy:latest
+    container_name: mitmproxy-web-247
+    restart: always
+    profiles:
+      - mitm
+    ports:
+      - "8080:8080"   # mitmproxy proxy port
+      - "8082:8081"   # mitmweb UI
+    command: ["mitmweb", "--web-host", "0.0.0.0", "--set", "block_global=false"]
+    volumes:
+      - mitm-certs:~/.mitmproxy
+
+volumes:
+  htk-certs:
+  mitm-certs:

@@ -1,0 +1,6 @@
+id=httptoolkit-ca-android14
+name=HTTP Toolkit & Frida CA Trust (Android 14+)
+version=v1.7.0
+versionCode=170
+author=HuntingBots
+description=Injects HTTP Toolkit / Frida proxy root certificates into Android 14+ Conscrypt APEX store and all application namespaces automatically at boot.
