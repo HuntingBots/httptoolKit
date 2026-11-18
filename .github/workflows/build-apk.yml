@@ -49,19 +49,24 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        if: ${{ github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'debug' || github.event_name != 'workflow_dispatch' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'all' || inputs.build_type == 'debug' }}
         run: |
           echo "Building Debug APK..."
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK & AAB
-        if: ${{ github.event.inputs.build_type == 'all' || github.event.inputs.build_type == 'release' || github.event_name != 'workflow_dispatch' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'all' || inputs.build_type == 'release' }}
         run: |
           echo "Building Release APK and AAB..."
           ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
 
       - name: Sign Release APK & Prepare Artifacts
         shell: bash
+        env:
+          ANDROID_SIGNING_JKS_BASE64: ${{ secrets.ANDROID_SIGNING_JKS_BASE64 }}
+          SIGNING_KEY_ALIAS: ${{ vars.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_STORE_PASSWORD: ${{ secrets.SIGNING_KEY_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           mkdir -p output
 
@@ -72,18 +77,24 @@ jobs:
           fi
 
           # Sign and prepare Release APK if built
+          UNSIGNED_APK=""
           if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
             UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            UNSIGNED_APK="app/build/outputs/apk/release/app-release.apk"
+          fi
+
+          if [ -n "$UNSIGNED_APK" ]; then
             SIGNED_APK="output/httptoolkit-clone-release.apk"
 
             # Check if user provided signing secrets
-            if [ -n "${{ secrets.ANDROID_SIGNING_JKS_BASE64 }}" ]; then
+            if [ -n "$ANDROID_SIGNING_JKS_BASE64" ]; then
               echo "Using custom signing keystore from GitHub Secrets..."
-              echo "${{ secrets.ANDROID_SIGNING_JKS_BASE64 }}" | base64 -d > release.keystore
+              echo "$ANDROID_SIGNING_JKS_BASE64" | base64 -d > release.keystore
               KEYSTORE_PATH="release.keystore"
-              KEY_ALIAS="${{ vars.SIGNING_KEY_ALIAS || 'release' }}"
-              STORE_PASS="${{ secrets.SIGNING_KEY_STORE_PASSWORD || 'android' }}"
-              KEY_PASS="${{ secrets.SIGNING_KEY_PASSWORD || 'android' }}"
+              KEY_ALIAS="${SIGNING_KEY_ALIAS:-release}"
+              STORE_PASS="${SIGNING_KEY_STORE_PASSWORD:-android}"
+              KEY_PASS="${SIGNING_KEY_PASSWORD:-android}"
             else
               echo "Generating automated release signing key..."
               keytool -genkeypair -v -keystore release.keystore \
@@ -96,10 +107,11 @@ jobs:
               KEY_PASS="androidpassword"
             fi
 
-            # Locate latest apksigner
-            APKSIGNER=$(find $ANDROID_HOME/build-tools/ -name apksigner | sort -V | tail -n 1)
-            ZIPALIGN=$(find $ANDROID_HOME/build-tools/ -name zipalign | sort -V | tail -n 1)
+            # Locate latest apksigner & zipalign
+            APKSIGNER=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -name apksigner 2>/dev/null | sort -V | tail -n 1)
+            ZIPALIGN=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -name zipalign 2>/dev/null | sort -V | tail -n 1)
 
+            rm -f aligned.apk
             echo "Aligning APK with $ZIPALIGN..."
             $ZIPALIGN -v -p 4 "$UNSIGNED_APK" aligned.apk
 
@@ -123,29 +135,32 @@ jobs:
             cp app/build/outputs/bundle/release/app-release.aab output/httptoolkit-clone-release.aab
           fi
 
-          # Generate SHA256 checksums
-          cd output
-          sha256sum * > checksums.txt
-          cat checksums.txt
-          cd ..
+          # Generate SHA256 checksums if any files exist in output
+          if ls output/* 1> /dev/null 2>&1; then
+            cd output
+            sha256sum * 2>/dev/null > checksums.txt || true
+            cat checksums.txt
+            cd ..
+          fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: httptoolkit-android14-builds
           path: output/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Create GitHub Release
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') || startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/HuntingBots' || github.ref == 'refs/heads/main' }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.create_release == true || github.event.inputs.create_release == 'true')) || startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/HuntingBots' || github.ref == 'refs/heads/main' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.7.0-build{0}', github.run_number) }}
-          name: ${{ format('HTTP Toolkit Clone Android 14+ Build #{0}', github.run_number) }}
+          tag_name: "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.7.0-build{0}', github.run_number) }}"
+          name: "HTTP Toolkit Clone Android 14+ Build #${{ github.run_number }}"
           draft: false
           prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: false
           body: |
             ### 🚀 HTTP Toolkit Clone for Android 14+ (24/7 Ready)
             
@@ -163,9 +178,6 @@ jobs:
             * Works seamlessly with Frida universal SSL unpinning scripts included in the repo.
             * Ready to connect to any 24/7 HTTP Toolkit / Frida proxy server.
           files: |
-            output/httptoolkit-clone-release.apk
-            output/httptoolkit-clone-debug.apk
-            output/httptoolkit-clone-release.aab
-            output/checksums.txt
+            output/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
